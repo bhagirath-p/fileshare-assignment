@@ -5,6 +5,7 @@
 *.tfplan
 *.tfstate
 *.txt
+*.backup
 file-sharing-ui/*
 file-sharing-ui/node_modules/*
 file-sharing-ui/dist/*
