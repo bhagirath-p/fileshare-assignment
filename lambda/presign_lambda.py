@@ -25,7 +25,11 @@ def lambda_handler(event, context):
         return response(400, {"error": "filename and sizeBytes are required"})
 
     # user identity
-    claims = event["requestContext"]["authorizer"]["claims"]
+    auth = event.get("requestContext", {}).get("authorizer", {})
+    claims = auth.get("claims")
+
+    if not claims:
+        return response(401, {"error": "Missing Cognito authorizer claims"})
     user_id = claims["sub"]
 
     # -----------------------------
