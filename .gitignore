@@ -3,6 +3,8 @@
 .terraform/providers/registry.terraform.io/hashicorp/aws/5.100.0/linux_amd64/terraform-provider-aws_v5.100.0_x5
 .terraform/providers/registry.terraform.io/hashicorp/aws/5.100.0/linux_amd64/terraform-provider-aws_v5.100.0_x5
 *.tfplan
+*.tfstate
+*.txt
 file-sharing-ui/*
 file-sharing-ui/node_modules/*
 file-sharing-ui/dist/*
