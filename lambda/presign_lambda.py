@@ -9,17 +9,17 @@ s3 = boto3.client('s3')
 dynamodb = boto3.client('dynamodb')
 
 BUCKET = os.environ['BUCKET']
-TABLE  = os.environ['TABLE']
+TABLE = os.environ['TABLE']
 USERS_TABLE = os.environ['USERS_TABLE']
 
-MAX_QUOTA = 50 * 1024 * 1024   # 50 MB
+MAX_QUOTA = 50 * 1024 * 1024  # 50 MB
 
 
 def lambda_handler(event, context):
     body = json.loads(event.get("body", "{}"))
 
     filename = body.get("filename")
-    size_bytes = body.get("sizeBytes")
+    size_bytes = int(body["sizeBytes"])
 
     if not filename or size_bytes is None:
         return response(400, {"error": "filename and sizeBytes are required"})
@@ -30,7 +30,7 @@ def lambda_handler(event, context):
 
     if not claims:
         return response(401, {"error": "Missing Cognito authorizer claims"})
-    user_id = claims["sub"]
+    user_id = auth.get("claims", {}).get("sub")
 
     # -----------------------------
     # 1. Get current user quota
@@ -52,19 +52,22 @@ def lambda_handler(event, context):
     # 3. Reserve quota (atomic)
     # -----------------------------
     try:
+        remaining_quota = MAX_QUOTA - size_bytes
+
         dynamodb.update_item(
             TableName=USERS_TABLE,
             Key={"userId": {"S": user_id}},
             UpdateExpression="SET usedBytes = if_not_exists(usedBytes, :zero) + :inc",
-            ConditionExpression="attribute_not_exists(usedBytes) OR usedBytes + :inc <= :max",
+            ConditionExpression="attribute_not_exists(usedBytes) OR usedBytes <= :remaining",
             ExpressionAttributeValues={
                 ":inc": {"N": str(size_bytes)},
                 ":zero": {"N": "0"},
-                ":max": {"N": str(MAX_QUOTA)}
+                ":remaining": {"N": str(remaining_quota)}
             }
         )
-    except Exception:
-        return response(403, {"error": "Quota exceeded"})
+
+    except Exception as e:
+        return response(403, {"error": "User Table Update Error"})
 
     # -----------------------------
     # 4. Create metadata (PENDING)
@@ -76,13 +79,13 @@ def lambda_handler(event, context):
     dynamodb.put_item(
         TableName=TABLE,
         Item={
-            "fileId":     {"S": file_id},
-            "userId":     {"S": user_id},
-            "filename":   {"S": filename},
-            "s3Key":      {"S": s3_key},
-            "createdAt":  {"N": str(created_at)},
-            "sizeBytes":  {"N": str(size_bytes)},
-            "status":     {"S": "PENDING"}
+            "fileId": {"S": file_id},
+            "userId": {"S": user_id},
+            "filename": {"S": filename},
+            "s3Key": {"S": s3_key},
+            "createdAt": {"S": str(created_at)},
+            "sizeBytes": {"N": str(size_bytes)},
+            "status": {"S": "PENDING"}
         }
     )
 
